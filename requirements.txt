@@ -1,0 +1,5 @@
+streamlit
+cv2
+numpy
+PIL
+streamlit_image_select
