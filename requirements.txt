@@ -1,5 +1,5 @@
-streamlit>=1.28.0
-opencv-python-headless==4.9.0.80
-numpy>=1.24.0,<2.0.0
-Pillow>=10.0.0
-streamlit-image-select
+streamlit
+opencv-python
+numpy
+Pillow
+streamlit_image_select
