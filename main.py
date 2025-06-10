@@ -117,37 +117,19 @@ PRESETS = {
     "Preset 1": {
         "image_path": "image/preset_1.png",
         "settings": {
-            "filter_name": "Original",
-            "denoise_method": "Non-local Means",
-            "h_value": 16,
-            "blend_factor": 0.15,
-            "brightness": 11,
-            "contrast": 1.10,
-            "saturation": 1.25,
-            "temperature": 2,
-            "sharpness": 6,
-            "d_bilateral": 9,
-            "sigma_color": 75,
-            "sigma_space": 75,
-            "ksize_gaussian": 5
+            "filter_name": "Original", "denoise_method": "Non-local Means", "h_value": 16,
+            "blend_factor": 0.15, "brightness": 11, "contrast": 1.10, "saturation": 1.25,
+            "temperature": 2, "sharpness": 6, "d_bilateral": 9, "sigma_color": 75,
+            "sigma_space": 75, "ksize_gaussian": 5
         }
     },
     "Preset 2": {
         "image_path": "image/preset_2.png",
         "settings": {
-            "filter_name": "Warm Glow",
-            "denoise_method": "Gaussian Blur",
-            "h_value": 7,
-            "blend_factor": 0.15,
-            "brightness": 13,
-            "contrast": 0.75,
-            "saturation": 1.40,
-            "temperature": -15,
-            "sharpness": 0,
-            "d_bilateral": 9,
-            "sigma_color": 75,
-            "sigma_space": 75,
-            "ksize_gaussian": 7
+            "filter_name": "Warm Glow", "denoise_method": "Gaussian Blur", "h_value": 7,
+            "blend_factor": 0.15, "brightness": 13, "contrast": 0.75, "saturation": 1.40,
+            "temperature": -15, "sharpness": 0, "d_bilateral": 9, "sigma_color": 75,
+            "sigma_space": 75, "ksize_gaussian": 7
         }
     },
 }
@@ -156,95 +138,141 @@ PRESETS = {
 st.set_page_config(layout="wide")
 st.title("Night Shoot Optimizer 🌙")
 
+## Fungsi Callback untuk update state
+def update_state_value(state_key, widget_key):
+    """Memindahkan nilai dari kunci widget ke kunci state utama."""
+    st.session_state[state_key] = st.session_state[widget_key]
+
 uploaded_file = st.file_uploader("Upload an image", type=['jpg', 'png', 'jpeg'])
 
 if uploaded_file:
     uploaded_file_bytes = uploaded_file.getvalue()
     img_original_np = load_image(uploaded_file_bytes)
+    
+    # Inisialisasi state utama
+    defaults = {
+        "denoise_method": "Non-local Means", "h_value": 10, "d_bilateral": 9,
+        "sigma_color": 75, "sigma_space": 75, "ksize_gaussian": 5,
+        "blend_factor": 0.15, "brightness": 0, "contrast": 1.0,
+        "saturation": 1.0, "temperature": 0, "sharpness": 0,
+        "filter_name": "Original", "last_preset": None, "force_rerun": False
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
 
     st.sidebar.title("🛠️ Editing Controls")
-    tab_presets, tab_denoise, tab_adjustments, tab_filter = st.sidebar.tabs(["Presets", "Denoising", "Adjustments", "Filters"])
     
-    with tab_presets:
-        st.subheader("🌟 Apply a Preset")
-        st.write("Click a preset to apply its settings.")
-
-        if 'last_preset' not in st.session_state:
-            st.session_state.last_preset = None
-            
-        preset_names = list(PRESETS.keys())
-        preset_images = [PRESETS[name]["image_path"] for name in preset_names]
-
-        selected_preset_idx = image_select(
-            label="Select a preset",
-            images=preset_images,
-            captions=preset_names,
-            use_container_width=True,
-            return_value='index'
-        )
-        
-        selected_preset_name = preset_names[selected_preset_idx]
-
-        if selected_preset_name != st.session_state.last_preset:
-            st.session_state.last_preset = selected_preset_name
-            preset_settings = PRESETS[selected_preset_name]["settings"]
-            for key, value in preset_settings.items():
-                st.session_state[key] = value
-            st.success(f"Applied '{selected_preset_name}' preset!")
-
+    tab_denoise, tab_adjustments, tab_filter, tab_presets = st.sidebar.tabs(["Denoising", "Adjustments", "Filters", "Presets"])
+    
     with tab_denoise:
         st.subheader("⚙️ Denoising Parameters")
-        denoise_method_selected = st.selectbox("Choose denoising method", ["Non-local Means", "Bilateral Filter", "Gaussian Blur", "Blended NLM-Bilateral"], key="denoise_method")
-        h_value, d_bilateral, sigma_color_bilateral, sigma_space_bilateral, ksize_gaussian = 7, 9, 75, 75, 5
+        
+        denoise_methods = ["Non-local Means", "Bilateral Filter", "Gaussian Blur", "Blended NLM-Bilateral"]
+        st.selectbox(
+            "Choose denoising method", denoise_methods,
+            index=denoise_methods.index(st.session_state.denoise_method),
+            key="denoise_method_widget",
+            on_change=update_state_value, args=("denoise_method", "denoise_method_widget")
+        )
+
         nlm_template_size, nlm_search_size = 3, 11
-        if denoise_method_selected in ["Non-local Means", "Blended NLM-Bilateral"]:
-            h_value = st.slider("Denoising strength (NLM)", 3, 25, key="h_value")
-        if denoise_method_selected in ["Bilateral Filter", "Blended NLM-Bilateral"]:
-            d_bilateral = st.slider("Filter diameter (Bilateral)", 5, 15, key="d_bilateral")
-            sigma_color_bilateral = st.slider("Sigma Color (Bilateral)", 50, 150, key="sigma_color")
-            sigma_space_bilateral = st.slider("Sigma Space (Bilateral)", 50, 150, key="sigma_space")
-        if denoise_method_selected == "Gaussian Blur":
-            ksize_gaussian = st.slider("Kernel size (Gaussian)", 1, 15, 2, key="ksize_gaussian")
-            if ksize_gaussian % 2 == 0: ksize_gaussian += 1
-        blend_factor_val = st.slider("Naturalness level", 0.0, 1.0, key="blend_factor", help="Menggabungkan hasil denoising dengan gambar asli untuk menjaga detail alami")
+        
+        if st.session_state.denoise_method in ["Non-local Means", "Blended NLM-Bilateral"]:
+            st.slider("Denoising strength (NLM)", 3, 25, value=st.session_state.h_value, key="h_value_widget", on_change=update_state_value, args=("h_value", "h_value_widget"))
+        if st.session_state.denoise_method in ["Bilateral Filter", "Blended NLM-Bilateral"]:
+            st.slider("Filter diameter (Bilateral)", 5, 15, value=st.session_state.d_bilateral, key="d_bilateral_widget", on_change=update_state_value, args=("d_bilateral", "d_bilateral_widget"))
+            st.slider("Sigma Color (Bilateral)", 50, 150, value=st.session_state.sigma_color, key="sigma_color_widget", on_change=update_state_value, args=("sigma_color", "sigma_color_widget"))
+            st.slider("Sigma Space (Bilateral)", 50, 150, value=st.session_state.sigma_space, key="sigma_space_widget", on_change=update_state_value, args=("sigma_space", "sigma_space_widget"))
+        if st.session_state.denoise_method == "Gaussian Blur":
+            st.slider("Kernel size (Gaussian)", 1, 15, step=2, value=st.session_state.ksize_gaussian, key="ksize_gaussian_widget", on_change=update_state_value, args=("ksize_gaussian", "ksize_gaussian_widget"))
+        
+        st.slider("Naturalness level", 0.0, 1.0, value=st.session_state.blend_factor, key="blend_factor_widget", help="Menggabungkan hasil denoising dengan gambar asli untuk menjaga detail alami", on_change=update_state_value, args=("blend_factor", "blend_factor_widget"))
 
     with tab_adjustments:
         st.subheader("🔧 Image Adjustments")
-        brightness_val = st.slider("Brightness", -100, 100, key="brightness")
-        contrast_val = st.slider("Contrast", 0.1, 3.0, key="contrast")
-        saturation_val = st.slider("Color Saturation", 0.0, 3.0, key="saturation")
-        temperature_val = st.slider("Color Temperature (Cool ↔ Warm)", -50, 50, key="temperature")
-        sharpness_val = st.slider("Sharpness", 0, 100, key="sharpness")
+        st.slider("Brightness", -100, 100, value=st.session_state.brightness, key="brightness_widget", on_change=update_state_value, args=("brightness", "brightness_widget"))
+        st.slider("Contrast", 0.1, 3.0, value=st.session_state.contrast, key="contrast_widget", on_change=update_state_value, args=("contrast", "contrast_widget"))
+        st.slider("Color Saturation", 0.0, 3.0, value=st.session_state.saturation, key="saturation_widget", on_change=update_state_value, args=("saturation", "saturation_widget"))
+        st.slider("Color Temperature (Cool ↔ Warm)", -50, 50, value=st.session_state.temperature, key="temperature_widget", on_change=update_state_value, args=("temperature", "temperature_widget"))
+        st.slider("Sharpness", 0, 100, value=st.session_state.sharpness, key="sharpness_widget", on_change=update_state_value, args=("sharpness", "sharpness_widget"))
     
     with tab_filter:
         st.subheader("🌃 Artistic Filters")
-        st.write("Click an image to apply the filter. (A preset may change this selection).")
+        st.write("Click an image to apply the filter.")
         
         filter_names = list(FILTERS.keys())
         preview_images = [FILTERS[name]["image_path"] for name in filter_names]
+        
+        # Cari index dari filter yang aktif saat ini
+        current_filter_index = 0
+        try:
+            current_filter_index = filter_names.index(st.session_state.filter_name)
+        except ValueError:
+            current_filter_index = 0
 
-        # indeks default dari session_state
-        default_index = 0
-        if 'filter_name' in st.session_state:
-            try:
-                default_index = filter_names.index(st.session_state.filter_name)
-            except ValueError:
-                default_index = 0 
-
-        selected_index = image_select(
+        # Gunakan key unik yang berubah ketika ada perubahan dari preset
+        filter_widget_key = f"filter_widget_{st.session_state.get('filter_change_trigger', 0)}"
+        
+        selected_filter_index = image_select(
             label="Select a filter",
             images=preview_images,
             captions=filter_names,
             use_container_width=True,
             return_value='index',
-            index=default_index 
+            index=current_filter_index,
+            key=filter_widget_key
         )
         
-        selected_filter_name = filter_names[selected_index]
-        st.session_state.filter_name = selected_filter_name
+        # Update filter jika ada perubahan
+        new_filter_name = filter_names[selected_filter_index]
+        if new_filter_name != st.session_state.filter_name:
+            st.session_state.filter_name = new_filter_name
 
+    with tab_presets:
+        st.subheader("🌟 Apply a Preset")
+        st.write("Click a preset to apply its settings.")
+
+        preset_names_orig = list(PRESETS.keys())
+        preset_images_orig = [PRESETS[name]["image_path"] for name in preset_names_orig]
+        
+        placeholder_caption = "Select a Preset"
+        placeholder_image = "image/original.png" 
+        
+        display_captions = [placeholder_caption] + preset_names_orig
+        display_images = [placeholder_image] + preset_images_orig
+
+        selected_preset_idx = image_select(
+            label="Select a preset to apply",
+            images=display_images,
+            captions=display_captions,
+            use_container_width=True,
+            return_value='index'
+        )
+        
+        if selected_preset_idx > 0:
+            selected_preset_name = preset_names_orig[selected_preset_idx - 1]
+
+            if selected_preset_name != st.session_state.last_preset:
+                st.session_state.last_preset = selected_preset_name
+                preset_settings = PRESETS[selected_preset_name]["settings"]
+                
+                # Update semua pengaturan dari preset
+                for key, value in preset_settings.items():
+                    st.session_state[key] = value
+                
+                # Trigger perubahan pada filter widget dengan mengubah key-nya
+                if 'filter_change_trigger' not in st.session_state:
+                    st.session_state.filter_change_trigger = 0
+                st.session_state.filter_change_trigger += 1
+                
+                st.success(f"Applied '{selected_preset_name}' preset!")
+                st.rerun()
+        else:
+            st.session_state.last_preset = None
 
     # --- Image Processing Pipeline ---
+    nlm_template_size, nlm_search_size = 3, 11
     denoised_image_np = get_denoised_image(img_original_np, st.session_state.denoise_method, st.session_state.h_value, st.session_state.d_bilateral, st.session_state.sigma_color, st.session_state.sigma_space, st.session_state.ksize_gaussian, nlm_template_size, nlm_search_size)
     base_image_np = cv2.addWeighted(denoised_image_np, 1.0 - st.session_state.blend_factor, img_original_np, st.session_state.blend_factor, 0)
     base_image_np = np.clip(base_image_np, 0, 255).astype(np.uint8)
